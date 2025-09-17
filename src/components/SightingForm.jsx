@@ -2,6 +2,17 @@ import React, { useState } from "react";
 import { uid } from "../utils/datastore";
 import { fileToDataURL } from "../utils/datastore";
 
+function pad2(n) { return String(n).padStart(2, "0"); }
+function nowLocalInputValue() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+  return `${y}-${m}-${day}T${hh}:${mm}`;
+}
+
 const DOG_BREEDS = [
   { value: "golden_retriever", label: "Golden Retriever / โกลเด้น" },
   { value: "labrador_retriever", label: "Labrador Retriever / ลาบราดอร์" },
@@ -20,15 +31,27 @@ const CAT_BREEDS = [
 export default function SightingForm({ onAdd }) {
   const [state, setState] = useState({
     species: "dog", breed: "", color: "", notes: "",
-    time: new Date().toISOString().slice(0, 16), lat: 13.7563, lng: 100.5018, photoFile: null,
+    time: nowLocalInputValue(), lat: 13.7563, lng: 100.5018, photoFile: null,
   });
   const onChange = (e) => {
     const { name, value, files } = e.target;
-    if (name === "photo") setState((s) => ({ ...s, photoFile: files?.[0] || null }));
-    else setState((s) => ({ ...s, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
+    if (name === "photo") {
+      setState((s) => ({ ...s, photoFile: files?.[0] || null }));
+      return;
+    }
+    if (name === "time") {
+      setState((s) => ({ ...s, time: value }));
+      return;
+    }
+    setState((s) => ({ ...s, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
   };
   const onSubmit = async (e) => {
     e.preventDefault();
+    const maxNow = nowLocalInputValue();
+    if (state.time > maxNow) {
+      alert("คุณใส่เวลาไม่ถูก");
+      return;
+    }
     const photo = await fileToDataURL(state.photoFile);
     const item = {
       id: uid("SG"),
@@ -68,7 +91,7 @@ export default function SightingForm({ onAdd }) {
         </div>
         <div>
           <label className="block text-sm font-medium">เวลา</label>
-          <input type="datetime-local" name="time" value={state.time} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
+          <input type="datetime-local" name="time" value={state.time} max={nowLocalInputValue()} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
         </div>
         <div className="col-span-2">
           <label className="block text-sm font-medium">โน้ต</label>

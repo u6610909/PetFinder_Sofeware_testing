@@ -16,20 +16,40 @@ const CAT_BREEDS = [
   { value: "thai_domestic", label: "Thai Domestic / ไทยบ้าน" },
 ];
 
+// Format current local time as "YYYY-MM-DDTHH:MM" for datetime-local
+function nowLocalInputValue() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function LostForm({ onAdd }) {
   const [state, setState] = useState({
     name: "", species: "dog", breed: "", color: "", size: "", age: "",
-    lastSeenAt: new Date().toISOString().slice(0, 16), lat: 13.7563, lng: 100.5018, photoFile: null,
+    lastSeenAt: nowLocalInputValue(), lat: 13.7563, lng: 100.5018, photoFile: null,
   });
 
   const onChange = (e) => {
     const { name, value, files } = e.target;
-    if (name === "photo") setState((s) => ({ ...s, photoFile: files?.[0] || null }));
-    else setState((s) => ({ ...s, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
+    if (name === "photo") {
+      setState((s) => ({ ...s, photoFile: files?.[0] || null }));
+    } else if (name === "lastSeenAt") {
+      // Allow any user input; validation will occur on submit
+      setState((s) => ({ ...s, lastSeenAt: value }));
+    } else {
+      setState((s) => ({ ...s, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
+    }
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    // Disallow future datetime
+    const selected = new Date(state.lastSeenAt);
+    const now = new Date();
+    if (isNaN(selected.getTime()) || selected > now) {
+      alert("คุณใส่เวลาไม่ถูก");
+      return;
+    }
     const photo = await fileToDataURL(state.photoFile);
     const item = {
       id: uid("LP"),
@@ -91,7 +111,7 @@ export default function LostForm({ onAdd }) {
         </div>
         <div>
           <label className="block text-sm font-medium">เวลา/วันที่พบล่าสุด</label>
-          <input type="datetime-local" name="lastSeenAt" value={state.lastSeenAt} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
+          <input type="datetime-local" name="lastSeenAt" value={state.lastSeenAt} onChange={onChange} max={nowLocalInputValue()} className="mt-1 w-full rounded-xl border px-3 py-2" />
         </div>
         <div>
           <label className="block text-sm font-medium">lat</label>

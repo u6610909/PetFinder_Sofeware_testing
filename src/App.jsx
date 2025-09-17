@@ -15,7 +15,7 @@ import {
 
 import { seededLostPets, seededSightings } from "./data/seed";
 
-// ✅ ช่วยคำนวณคะแนน Lost ↔ Sighting
+// Lost Sighting
 function scoreLostToSighting(lost, sight) {
   const dKm = haversineKm(lost.geo.lat, lost.geo.lng, sight.geo.lat, sight.geo.lng);
   const hDiff = Math.abs((new Date(sight.time) - new Date(lost.lastSeenAt)) / 36e5);
@@ -44,13 +44,17 @@ export default function App() {
   const [sightings, setSightings] = useLocalStore("pf_sight", seededSightings);
   const [myLostId, setMyLostId] = useLocalStore("pf_myLostId", null);
 
-  // ✅ ผลลัพธ์การแมตช์: "Lost ที่เพิ่งบันทึก" ↔ "Sightings"
+ 
+  const [myLostIds, setMyLostIds] = useLocalStore("pf_myLostIds", []);
+
+
   const [results, setResults] = useState([]);
 
-  // ✅ เมื่อกดบันทึก Lost จากฟอร์ม: บันทึก + หาแมตช์กับ Sightings + ตั้งเป็น "สัตว์ของฉัน"
+  // ✅ เมื่อกดบันทึก Lost จากฟอร์ม: บันทึก + หาแมตช์กับ Sightings + ใส่ใน “สัตว์ของฉัน”
   const handleAddAndMatch = (newLost) => {
     setLost((arr) => [...arr, newLost]);
-    setMyLostId(newLost.id);
+    setMyLostId(newLost.id); // โฟกัสตัวล่าสุดบนแผนที่
+    setMyLostIds((ids) => Array.from(new Set([...(ids || []), newLost.id]))); // สะสม ไม่ทับตัวเก่า
 
     const rows = (sightings || [])
       .filter((s) => s.species === newLost.species)
@@ -58,11 +62,17 @@ export default function App() {
       .sort((a, b) => b.metrics.conf - a.metrics.conf);
 
     setResults(rows);
-    // อยู่แท็บ Home อยู่แล้ว ถ้าต้องการสลับแท็บก็: setTab("home");
   };
 
+  // โฟกัสตัวเดียว (ไว้โชว์โซนบนแผนที่)
   const myLost = useMemo(() => (lost || []).find((p) => p.id === myLostId) || null, [lost, myLostId]);
   const lostList = useMemo(() => lost || [], [lost]);
+
+  // 👇 ใหม่: ลิสต์ “สัตว์ของฉันทั้งหมด” (เฉพาะที่ถูกเพิ่มผ่าน Add Lost)
+  const myLostList = useMemo(
+    () => (lost || []).filter((p) => (myLostIds || []).includes(p.id)),
+    [lost, myLostIds]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -82,40 +92,54 @@ export default function App() {
         <main className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-2 gap-6">
           {/* 1) รวม Add Lost + Matching ในปุ่มเดียว */}
           <section className="bg-white rounded-2xl shadow p-5">
-            <h2 className="text-lg font-semibold mb-4">1) ใส่ข้อมูลสัตว์หาย (บันทึก & หาแมตช์ทันที)</h2>
+            <h2 className="text-lg font-semibold mb-4">1) ใส่ข้อมูลสัตว์หาย (บันทึก &amp; หาแมตช์ทันที)</h2>
             <LostForm onAdd={handleAddAndMatch} />
             <p className="text-xs mt-3 text-gray-500">
               เกณฑ์คะแนน: Distance 30%, Time 20%, Breed 25%, Color 15%, Size 5%, Age 5% (0–100).
             </p>
           </section>
 
-          {/* 2) สัตว์ที่ฉันแจ้งหาย */}
+          {/* 2) สัตว์ที่ฉันแจ้งหาย (หลายตัวได้) */}
           <section className="bg-white rounded-2xl shadow p-5">
             <h2 className="text-lg font-semibold mb-4">2) สัตว์ที่ฉันแจ้งหาย</h2>
-            {!myLost ? (
-              <div className="text-sm opacity-70">— ยังไม่ได้ตั้งค่าสัตว์ของฉัน —</div>
+            {myLostList.length === 0 ? (
+              <div className="text-sm opacity-70">— ยังไม่มีสัตว์ของฉัน (เพิ่มจาก “Add Lost Pet” ด้านซ้าย) —</div>
             ) : (
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="font-semibold">
-                    {myLost.name || "(ไม่มีชื่อ)"} <span className="opacity-60 text-xs">#{myLost.id}</span>
-                  </div>
-                  <div className="text-sm opacity-80">
-                    {myLost.species} · {myLost.breed} · {myLost.color} · {myLost.size || "?"} · {myLost.age || "?"}
-                  </div>
-                  <div className="text-xs opacity-70 mt-1">
-                    lat {myLost.geo.lat.toFixed(3)}, lng {myLost.geo.lng.toFixed(3)} • {String(myLost.lastSeenAt).replace("T"," ")}
-                  </div>
-                  {(() => {
-                    const { km, hours, tier } = computeSearchRadiusKm(myLost.lastSeenAt);
-                    return <div className="text-xs mt-2">Recommend Search Zone: <b>{km} km</b> (elapsed ≈ {hours.toFixed(1)}h • tier {tier})</div>;
-                  })()}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button className="px-3 py-1 rounded border" onClick={() => setTab("map")}>ดูบนแผนที่</button>
-                  <button className="px-3 py-1 rounded border" onClick={() => setMyLostId(null)}>ล้างการเลือก</button>
-                </div>
-              </div>
+              <ul className="space-y-3 max-h-[420px] overflow-auto pr-1">
+                {myLostList.map((p) => {
+                  const { km, hours, tier } = computeSearchRadiusKm(p.lastSeenAt);
+                  const isSelected = p.id === myLostId;
+                  return (
+                    <li key={p.id} className={`rounded-xl border p-3 ${isSelected ? "ring-2 ring-indigo-500 border-indigo-300" : ""}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="font-semibold">
+                            {p.name || "(ไม่มีชื่อ)"} <span className="opacity-60 text-xs">#{p.id}</span>
+                            {isSelected && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white">เลือกอยู่</span>}
+                          </div>
+                          <div className="text-sm opacity-80">
+                            {p.species} · {p.breed} · {p.color} · {p.size || "?"} · {p.age || "?"}
+                          </div>
+                          <div className="text-xs opacity-70 mt-1">
+                            lat {p.geo.lat.toFixed(3)}, lng {p.geo.lng.toFixed(3)} • {String(p.lastSeenAt).replace("T"," ")}
+                          </div>
+                          <div className="text-xs mt-1">
+                            Recommend Search Zone: <b>{km} km</b> (elapsed ≈ {hours.toFixed(1)}h • tier {tier})
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          {isSelected ? (
+                            <button className="px-3 py-1 rounded border" onClick={() => setMyLostId(null)}>ล้างการเลือก</button>
+                          ) : (
+                            <button className="px-3 py-1 rounded border" onClick={() => setMyLostId(p.id)}>ตั้งเป็นตัวโฟกัส</button>
+                          )}
+                          <button className="px-3 py-1 rounded border" onClick={() => setTab("map")}>ดูบนแผนที่</button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </section>
 
@@ -123,7 +147,7 @@ export default function App() {
           <section className="bg-white rounded-2xl shadow p-5 md:col-span-2">
             <h2 className="text-lg font-semibold mb-4">3) ผลลัพธ์การจัดอันดับที่ใกล้เคียงที่สุด</h2>
             {results.length === 0 ? (
-              <div className="text-sm opacity-70">ยังไม่มีผลลัพธ์ ลองกด “บันทึก Lost & หาแมตช์”</div>
+              <div className="text-sm opacity-70">ยังไม่มีผลลัพธ์ ลองกด “บันทึก Lost &amp; หาแมตช์”</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
@@ -178,13 +202,25 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   className="px-3 py-1 rounded border"
-                  onClick={() => { setLost(seededLostPets); setSightings(seededSightings); setMyLostId(null); setResults([]); }}
+                  onClick={() => {
+                    setLost(seededLostPets);
+                    setSightings(seededSightings);
+                    setMyLostId(null);
+                    setMyLostIds([]);        // 👈 ล้างลิสต์ “สัตว์ของฉัน”
+                    setResults([]);
+                  }}
                 >
                   Reset เป็นตัวอย่าง
                 </button>
                 <button
                   className="px-3 py-1 rounded border"
-                  onClick={() => { setLost([]); setSightings([]); setMyLostId(null); setResults([]); }}
+                  onClick={() => {
+                    setLost([]);
+                    setSightings([]);
+                    setMyLostId(null);
+                    setMyLostIds([]);        // 👈 ล้างลิสต์ “สัตว์ของฉัน”
+                    setResults([]);
+                  }}
                 >
                   ล้างทั้งหมด
                 </button>
@@ -200,6 +236,7 @@ export default function App() {
                       <div className="opacity-80">{p.species} · {p.breed} · {p.color} · {p.size || "?"} · {p.age || "?"}</div>
                       <div className="text-xs opacity-60">lat {p.geo.lat}, lng {p.geo.lng} · {String(p.lastSeenAt).replace("T"," ")}</div>
                       <div className="mt-1">
+                        {/* ปล่อยปุ่มนี้ไว้เฉพาะสำหรับตั้ง “โฟกัสบนแผนที่” ไม่ได้เพิ่มเข้า myLostIds */}
                         <button className="px-2 py-1 text-xs rounded border" onClick={() => setMyLostId(p.id)}>ตั้งเป็นสัตว์ของฉัน</button>
                       </div>
                     </li>
