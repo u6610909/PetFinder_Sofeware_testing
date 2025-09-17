@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import LostForm from "./components/LostForm";
 import SightingForm from "./components/SightingForm";
@@ -14,6 +15,28 @@ import {
 
 import { seededLostPets, seededSightings } from "./data/seed";
 
+// ✅ ช่วยคำนวณคะแนน Lost ↔ Sighting
+function scoreLostToSighting(lost, sight) {
+  const dKm = haversineKm(lost.geo.lat, lost.geo.lng, sight.geo.lat, sight.geo.lng);
+  const hDiff = Math.abs((new Date(sight.time) - new Date(lost.lastSeenAt)) / 36e5);
+  const breedS = breedScore(lost.breed, sight.breed);
+  const colorS = colorScore(lost.color, sight.color);
+  const sizeS = sizeScore(lost.size || "", sight.size || "");
+  const ageS  = ageScore(lost.age  || "", sight.age  || "");
+  const conf  = totalConfidence({ dKm, hDiff, breedS, colorS, sizeS, ageS });
+  const distS = distanceScoreKm(dKm);
+  const timeS = timeScoreHours(hDiff);
+  const formula = `0.30*${distS} + 0.20*${timeS} + 0.25*${breedS} + 0.15*${colorS} + 0.05*${sizeS} + 0.05*${ageS}`;
+  return {
+    sight,
+    metrics: {
+      distanceKm: Number(dKm.toFixed(2)),
+      timeDiffH : Number(hDiff.toFixed(1)),
+      breedS, colorS, sizeS, ageS, distS, timeS, conf, formula
+    }
+  };
+}
+
 export default function App() {
   const [tab, setTab] = useState("home");
 
@@ -21,74 +44,21 @@ export default function App() {
   const [sightings, setSightings] = useLocalStore("pf_sight", seededSightings);
   const [myLostId, setMyLostId] = useLocalStore("pf_myLostId", null);
 
-  const DOG_BREEDS = [
-    { value: "golden_retriever", label: "Golden Retriever / โกลเด้น" },
-    { value: "labrador_retriever", label: "Labrador Retriever / ลาบราดอร์" },
-    { value: "siberian_husky", label: "Siberian Husky / ไซบีเรียน" },
-    { value: "pomeranian", label: "Pomeranian / ปอม" },
-    { value: "thai_ridgeback", label: "Thai Ridgeback / ไทยหลังอาน" },
-  ];
-  const CAT_BREEDS = [
-    { value: "siamese", label: "Siamese / วิเชียรมาศ" },
-    { value: "persian", label: "Persian / เปอร์เซีย" },
-    { value: "british_shorthair", label: "British Shorthair" },
-    { value: "scottish_fold", label: "Scottish Fold" },
-    { value: "thai_domestic", label: "Thai Domestic / ไทยบ้าน" },
-  ];
-
-  // Matching form (compare “input” vs lost list)
-  const [form, setForm] = useState({
-    name: "", species: "dog", breed: "", color: "", size: "", age: "",
-    lastSeenAt: new Date().toISOString().slice(0, 16), lat: 13.7563, lng: 100.5018,
-  });
+  // ✅ ผลลัพธ์การแมตช์: "Lost ที่เพิ่งบันทึก" ↔ "Sightings"
   const [results, setResults] = useState([]);
 
-  const onChange = (e) => {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
-  };
+  // ✅ เมื่อกดบันทึก Lost จากฟอร์ม: บันทึก + หาแมตช์กับ Sightings + ตั้งเป็น "สัตว์ของฉัน"
+  const handleAddAndMatch = (newLost) => {
+    setLost((arr) => [...arr, newLost]);
+    setMyLostId(newLost.id);
 
-  const compute = () => {
-    try {
-      const inputTime = new Date(form.lastSeenAt);
-      const now = new Date();
-      const inputTs = isNaN(inputTime.getTime()) ? now : inputTime;
+    const rows = (sightings || [])
+      .filter((s) => s.species === newLost.species)
+      .map((s) => scoreLostToSighting(newLost, s))
+      .sort((a, b) => b.metrics.conf - a.metrics.conf);
 
-      const scored = (lost || []).map((p) => {
-        const dKm = haversineKm(form.lat, form.lng, p.geo.lat, p.geo.lng);
-        const hDiff = Math.abs((inputTs - new Date(p.lastSeenAt)) / 36e5);
-        const breedS = breedScore(form.breed, p.breed);
-        const colorS = colorScore(form.color, p.color);
-        const sizeS = sizeScore(form.size, p.size || "");
-        const ageS = ageScore(form.age, p.age || "");
-        const conf = totalConfidence({ dKm, hDiff, breedS, colorS, sizeS, ageS });
-        const distS = distanceScoreKm(dKm);
-        const timeS = timeScoreHours(hDiff);
-        const formula = `0.30*${distS} + 0.20*${timeS} + 0.25*${breedS} + 0.15*${colorS} + 0.05*${sizeS} + 0.05*${ageS}`;
-        return {
-          ...p,
-          metrics: {
-            distanceKm: Number(dKm.toFixed(2)),
-            timeDiffH: Number(hDiff.toFixed(1)),
-            breedS, colorS, sizeS, ageS, distS, timeS, conf, formula,
-          },
-        };
-      });
-
-      scored.sort((a, b) => b.metrics.conf - a.metrics.conf);
-      setResults(scored);
-    } catch (e) {
-      console.error(e);
-      alert("Error computing matches. Please check inputs.");
-    }
-  };
-
-  const reset = () => {
-    setForm({
-      name: "", species: "dog", breed: "", color: "", size: "", age: "",
-      lastSeenAt: new Date().toISOString().slice(0, 16), lat: 13.7563, lng: 100.5018,
-    });
-    setResults([]);
+    setResults(rows);
+    // อยู่แท็บ Home อยู่แล้ว ถ้าต้องการสลับแท็บก็: setTab("home");
   };
 
   const myLost = useMemo(() => (lost || []).find((p) => p.id === myLostId) || null, [lost, myLostId]);
@@ -110,82 +80,32 @@ export default function App() {
 
       {tab === "home" && (
         <main className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-2 gap-6">
-          {/* 1) Matching Form */}
+          {/* 1) รวม Add Lost + Matching ในปุ่มเดียว */}
           <section className="bg-white rounded-2xl shadow p-5">
-            <h2 className="text-lg font-semibold mb-4">1) ใส่ข้อมูลสัตว์หาย (สำหรับจับคู่)</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-sm font-medium">ชื่อสัตว์ (ใส่หรือไม่ก็ได้)</label>
-                <input name="name" value={form.name} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Milo" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">ชนิด</label>
-                <select name="species" value={form.species} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2">
-                  <option value="dog">Dog</option><option value="cat">Cat</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">สายพันธุ์ (เลือกได้ 5 แบบ)</label>
-                <select name="breed" value={form.breed} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2">
-                  <option value="">-- เลือกสายพันธุ์ --</option>
-                  {(form.species === "dog" ? DOG_BREEDS : CAT_BREEDS).map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">สี</label>
-                <input name="color" value={form.color} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" placeholder="gold / black / gray white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">ขนาด</label>
-                <select name="size" value={form.size} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2">
-                  <option value="">-- เลือกขนาด --</option>
-                  <option value="small">เล็ก</option><option value="medium">กลาง</option><option value="large">ใหญ่</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">อายุ</label>
-                <select name="age" value={form.age} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2">
-                  <option value="">-- เลือกอายุ --</option>
-                  {form.species === "dog"
-                    ? (<><option value="puppy">ลูกหมา</option><option value="adult">หมาโต</option></>)
-                    : (<><option value="kitten">ลูกแมว</option><option value="adult">แมวโต</option></>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">เวลา/วันที่พบล่าสุด</label>
-                <input type="datetime-local" name="lastSeenAt" value={form.lastSeenAt} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">ละติจูด (lat)</label>
-                <input name="lat" type="number" step="0.0001" value={form.lat} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">ลองจิจูด (lng)</label>
-                <input name="lng" type="number" step="0.0001" value={form.lng} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-3">
-              <button onClick={compute} className="px-4 py-2 rounded-xl bg-indigo-600 text-white shadow hover:opacity-90">ค้นหาแมตช์</button>
-              <button onClick={reset} className="px-4 py-2 rounded-xl border">ล้างฟอร์ม</button>
-            </div>
-
-            <p className="text-xs mt-3 text-gray-500">เกณฑ์คะแนน: Distance 30%, Time 20%, Breed 25%, Color 15%, Size 5%, Age 5% (0–100).</p>
+            <h2 className="text-lg font-semibold mb-4">1) ใส่ข้อมูลสัตว์หาย (บันทึก & หาแมตช์ทันที)</h2>
+            <LostForm onAdd={handleAddAndMatch} />
+            <p className="text-xs mt-3 text-gray-500">
+              เกณฑ์คะแนน: Distance 30%, Time 20%, Breed 25%, Color 15%, Size 5%, Age 5% (0–100).
+            </p>
           </section>
 
-          {/* 2) My Lost */}
+          {/* 2) สัตว์ที่ฉันแจ้งหาย */}
           <section className="bg-white rounded-2xl shadow p-5">
             <h2 className="text-lg font-semibold mb-4">2) สัตว์ที่ฉันแจ้งหาย</h2>
             {!myLost ? (
-              <div className="text-sm opacity-70">ยังไม่ได้เลือกสัตว์ของฉันจากการบันทึกในแท็บ Sighting (ส่วน Add Lost)</div>
+              <div className="text-sm opacity-70">— ยังไม่ได้ตั้งค่าสัตว์ของฉัน —</div>
             ) : (
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="font-semibold">{myLost.name || "(ไม่มีชื่อ)"} <span className="opacity-60 text-xs">#{myLost.id}</span></div>
-                  <div className="text-sm opacity-80">{myLost.species} · {myLost.breed} · {myLost.color} · {myLost.size || "?"} · {myLost.age || "?"}</div>
-                  <div className="text-xs opacity-70 mt-1">lat {myLost.geo.lat.toFixed(3)}, lng {myLost.geo.lng.toFixed(3)} • {String(myLost.lastSeenAt).replace("T"," ")}</div>
+                  <div className="font-semibold">
+                    {myLost.name || "(ไม่มีชื่อ)"} <span className="opacity-60 text-xs">#{myLost.id}</span>
+                  </div>
+                  <div className="text-sm opacity-80">
+                    {myLost.species} · {myLost.breed} · {myLost.color} · {myLost.size || "?"} · {myLost.age || "?"}
+                  </div>
+                  <div className="text-xs opacity-70 mt-1">
+                    lat {myLost.geo.lat.toFixed(3)}, lng {myLost.geo.lng.toFixed(3)} • {String(myLost.lastSeenAt).replace("T"," ")}
+                  </div>
                   {(() => {
                     const { km, hours, tier } = computeSearchRadiusKm(myLost.lastSeenAt);
                     return <div className="text-xs mt-2">Recommend Search Zone: <b>{km} km</b> (elapsed ≈ {hours.toFixed(1)}h • tier {tier})</div>;
@@ -199,36 +119,45 @@ export default function App() {
             )}
           </section>
 
-          {/* 3) Ranked Results */}
+          {/* 3) ผลลัพธ์การจัดอันดับ (แมตช์กับ Sightings ของ Lost ล่าสุดที่บันทึก) */}
           <section className="bg-white rounded-2xl shadow p-5 md:col-span-2">
             <h2 className="text-lg font-semibold mb-4">3) ผลลัพธ์การจัดอันดับที่ใกล้เคียงที่สุด</h2>
             {results.length === 0 ? (
-              <div className="text-sm opacity-70">ยังไม่มีผลลัพธ์ ลองกด "ค้นหาแมตช์"</div>
+              <div className="text-sm opacity-70">ยังไม่มีผลลัพธ์ ลองกด “บันทึก Lost & หาแมตช์”</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-left border-b">
-                      <th className="py-2 pr-4">อันดับ</th><th className="py-2 pr-4">สัตว์หาย</th><th className="py-2 pr-4">สายพันธุ์/สี</th>
-                      <th className="py-2 pr-4">ระยะทาง (km)</th><th className="py-2 pr-4">เวลาต่าง (ชม.)</th>
-                      <th className="py-2 pr-4">Breed</th><th className="py-2 pr-4">Color</th><th className="py-2 pr-4">Size</th><th className="py-2 pr-4">Age</th><th className="py-2 pr-4">คะแนนรวม</th>
+                      <th className="py-2 pr-4">อันดับ</th>
+                      <th className="py-2 pr-4">Sighting</th>
+                      <th className="py-2 pr-4">ระยะทาง (km)</th>
+                      <th className="py-2 pr-4">เวลาต่าง (ชม.)</th>
+                      <th className="py-2 pr-4">Breed</th>
+                      <th className="py-2 pr-4">Color</th>
+                      <th className="py-2 pr-4">Size</th>
+                      <th className="py-2 pr-4">Age</th>
+                      <th className="py-2 pr-4">คะแนนรวม</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((r, idx) => (
-                      <tr key={r.id} className="border-b align-top hover:bg-gray-50">
+                    {results.map((row, idx) => (
+                      <tr key={row.sight.id} className="border-b align-top hover:bg-gray-50">
                         <td className="py-2 pr-4">{idx + 1}</td>
-                        <td className="py-2 pr-4 font-medium">{r.name || "(ไม่มีชื่อ)"} <span className="text-xs opacity-60">#{r.id}</span></td>
-                        <td className="py-2 pr-4">{r.breed} · {r.color}</td>
-                        <td className="py-2 pr-4">{r.metrics.distanceKm}</td>
-                        <td className="py-2 pr-4">{r.metrics.timeDiffH}</td>
-                        <td className="py-2 pr-4">{r.metrics.breedS}</td>
-                        <td className="py-2 pr-4">{r.metrics.colorS}</td>
-                        <td className="py-2 pr-4">{r.metrics.sizeS}</td>
-                        <td className="py-2 pr-4">{r.metrics.ageS}</td>
-                        <td className="py-2 pr-4 font-semibold">{r.metrics.conf}
-                          <div className="text-xs text-gray-500 mt-1">สูตร: {r.metrics.formula}</div>
+                        <td className="py-2 pr-4">
+                          <div className="font-medium">#{row.sight.id} · {row.sight.breed} · {row.sight.color}</div>
+                          <div className="text-xs opacity-70">
+                            {String(row.sight.time).replace("T"," ")} · lat {row.sight.geo.lat.toFixed(3)}, lng {row.sight.geo.lng.toFixed(3)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">สูตร: {row.metrics.formula}</div>
                         </td>
+                        <td className="py-2 pr-4">{row.metrics.distanceKm}</td>
+                        <td className="py-2 pr-4">{row.metrics.timeDiffH}</td>
+                        <td className="py-2 pr-4">{row.metrics.breedS}</td>
+                        <td className="py-2 pr-4">{row.metrics.colorS}</td>
+                        <td className="py-2 pr-4">{row.metrics.sizeS}</td>
+                        <td className="py-2 pr-4">{row.metrics.ageS}</td>
+                        <td className="py-2 pr-4 font-semibold">{row.metrics.conf}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -241,14 +170,24 @@ export default function App() {
 
       {tab === "data" && (
         <main className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-2 gap-6">
-          <LostForm onAdd={(item) => { setLost((arr) => [...arr, item]); setMyLostId(item.id); }} />
+          {/* ❌ เอา LostForm ออกจากแท็บนี้ (เพราะย้ายไปใช้ใน Home แล้ว) */}
           <SightingForm onAdd={(item) => setSightings((arr) => [...arr, item])} />
           <section className="bg-white rounded-2xl shadow p-5 md:col-span-2">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">รายการในระบบ (Persisted)</h2>
               <div className="flex gap-2">
-                <button className="px-3 py-1 rounded border" onClick={() => { setLost(seededLostPets); setSightings(seededSightings); setMyLostId(null); }}>Reset เป็นตัวอย่าง</button>
-                <button className="px-3 py-1 rounded border" onClick={() => { setLost([]); setSightings([]); setMyLostId(null); }}>ล้างทั้งหมด</button>
+                <button
+                  className="px-3 py-1 rounded border"
+                  onClick={() => { setLost(seededLostPets); setSightings(seededSightings); setMyLostId(null); setResults([]); }}
+                >
+                  Reset เป็นตัวอย่าง
+                </button>
+                <button
+                  className="px-3 py-1 rounded border"
+                  onClick={() => { setLost([]); setSightings([]); setMyLostId(null); setResults([]); }}
+                >
+                  ล้างทั้งหมด
+                </button>
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
