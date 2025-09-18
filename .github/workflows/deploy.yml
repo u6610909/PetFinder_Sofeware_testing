@@ -3,33 +3,34 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # Deploy when pushing to the `main` branch
+      - main  # Deploy when changes are pushed to `main`
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Step 2: Set up Node.js with a version compatible with Vite (20.x or later)
+      # Set up Node.js environment (use Node.js 20.x for Vite compatibility)
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.x'  # Ensure you use Node.js 20 or later
+          node-version: '20.x'
 
-      # Step 3: Install dependencies
+      # Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Build the project (if needed)
-      - name: Build project
+      # Run build command
+      - name: Build the project
         run: npm run build
 
-      # Step 5: Deploy to GitHub Pages (push to gh-pages branch)
+      # Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
-        run: npm run deploy
+        run: |
+          npm install gh-pages --save-dev  # Ensure gh-pages is installed
+          npm run deploy  # This will push the dist folder to gh-pages
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Uses the GITHUB_TOKEN to deploy
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub token for authentication
