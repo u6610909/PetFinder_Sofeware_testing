@@ -58,12 +58,13 @@ export default function MapLeafletPanel({ lost = [], sightings = [], myLostId = 
               <LayersControl.Overlay checked name="Search Zone (mine only)">
                 <LayerGroup>
                   {(() => {
-                    const { km, tier, hours } = computeSearchRadiusKm(myLost.lastSeenAt);
+                    const { km, tier, hours } = computeSearchRadiusKm(myLost.lastSeenAt, { specialNeeds: !!myLost.specialNeeds });
+                    const zoneColor = myLost.specialNeeds ? "#ef4444" : "#3b82f6";
                     return (
                       <Circle
                         center={[myLost.geo.lat, myLost.geo.lng]}
                         radius={km * 1000}
-                        pathOptions={{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.08 }}
+                        pathOptions={{ color: zoneColor, fillColor: zoneColor, fillOpacity: 0.08 }}
                       >
                         <Popup>
                           <div className="text-sm">

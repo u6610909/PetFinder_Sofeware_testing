@@ -1,9 +1,12 @@
 // =============================================
 // LostForm.jsx
-// Form to add a Lost Pet. On submit, it validates that the
-// "lastSeenAt" is not in the future, then emits the new lost
-// item via onAdd. Only UI text and comments were converted to
-// English. No logic was changed.
+// Form to add a Lost Pet.
+// - Validates that "lastSeenAt" is not in the future.
+// - Provides checkboxes for GPS-enabled and Special Needs:
+//   * GPS clamps the recommended search zone to ≤ 1 km (handled by consumers of this data).
+//   * Special Needs reduces the recommended search zone (e.g., ~40%) to account for slower movement.
+// - Emits the new lost item via onAdd.
+// Only UI text and comments were converted to English. Core logic remains unchanged.
 // =============================================
 
 import React, { useState } from "react";
@@ -45,16 +48,19 @@ export default function LostForm({ onAdd }) {
   const [state, setState] = useState({
     name: "", species: "dog", breed: "", color: "", size: "", age: "",
     lastSeenAt: nowLocalInputValue(), lat: 13.7563, lng: 100.5018, photoFile: null,
+    hasGPS: false, specialNeeds: false,
   });
 
   // Handle field changes
   const onChange = (e) => {
-    const { name, value, files } = e.target;
+    const { name, value, files, type, checked } = e.target;
     if (name === "photo") {
       setState((s) => ({ ...s, photoFile: files?.[0] || null }));
     } else if (name === "lastSeenAt") {
       // Let the user type freely; we'll validate on submit.
       setState((s) => ({ ...s, lastSeenAt: value }));
+    } else if (type === "checkbox") {
+      setState((s) => ({ ...s, [name]: Boolean(checked) }));
     } else {
       setState((s) => ({ ...s, [name]: name === "lat" || name === "lng" ? Number(value) : value }));
     }
@@ -78,6 +84,8 @@ export default function LostForm({ onAdd }) {
       color: state.color,
       size: state.size,
       age: state.age,
+      hasGPS: !!state.hasGPS,
+      specialNeeds: !!state.specialNeeds,
       lastSeenAt: state.lastSeenAt,
       photo: photo || null,
       geo: { lat: Number(state.lat), lng: Number(state.lng) },
@@ -143,6 +151,16 @@ export default function LostForm({ onAdd }) {
         <div>
           <label className="block text-sm font-medium">Longitude (lng)</label>
           <input name="lng" type="number" step="0.0001" value={state.lng} onChange={onChange} className="mt-1 w-full rounded-xl border px-3 py-2" />
+        </div>
+        <div className="col-span-2 flex items-center gap-6 mt-1">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" name="hasGPS" checked={state.hasGPS} onChange={onChange} />
+            GPS-enabled (clamp search zone ≤ 1 km)
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" name="specialNeeds" checked={state.specialNeeds} onChange={onChange} />
+            Special needs (reduce search zone by ~40%)
+          </label>
         </div>
         <div className="col-span-2">
           <label className="block text-sm font-medium">Photo (optional)</label>
