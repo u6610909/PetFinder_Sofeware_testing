@@ -1,32 +1,60 @@
-name: Deploy Vite app to GitHub Pages
+name: Deploy Vite site to GitHub Pages
 
 on:
   push:
-    branches:
-      - main  # or specify the branch you're working with
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
+      - name: Show repo tree (debug)
+        run: |
+          ls -la
+          echo "---- package.json ----"
+          cat package.json || true
+      - uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: 20
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build the app
+      - name: Install dependencies (ci if lockfile, else install)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Build
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          deploy_key: ${{ secrets.DEPLOY_KEY }}  # Ensure you have the deploy key set in your secrets
-          publish_dir: ./dist  # Your build folder
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
