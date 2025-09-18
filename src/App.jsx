@@ -258,7 +258,7 @@ export default function App() {
         <main className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-2 gap-6">
           {/* 1) Add Lost + Match */}
           <section className="bg-white rounded-2xl shadow p-5">
-            <h2 className="text-lg font-semibold mb-4">1) Report a Lost Pet (save & match)</h2>
+            <h2 className="text-lg font-semibold mb-4">1) Report a Lost Pet </h2>
             <LostForm onAdd={handleAddAndMatch} />
             <p className="text-xs mt-3 text-gray-500">
               Scoring weights: Distance 30%, Time 20%, Breed 25%, Color 15%, Size 5%, Age 5% (0–100).
