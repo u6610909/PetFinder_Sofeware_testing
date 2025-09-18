@@ -27,7 +27,7 @@ jobs:
       - name: Build project
         run: npm run build
 
-      # Step 4: Deploy to GitHub Pages
+      # Step 4: Deploy to GitHub Pages (push to gh-pages branch)
       - name: Deploy to GitHub Pages
         run: npm run deploy
         env:
