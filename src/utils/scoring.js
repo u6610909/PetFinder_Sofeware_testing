@@ -1,3 +1,12 @@
+export const WEIGHTS = {
+  distance: 0.25,
+  time: 0.20,
+  breed: 0.25,
+  color: 0.10,
+  size: 0.10,
+  age: 0.10,
+};
+
 export function colorScore(a, b) {
   if (!a || !b) return 0;
   const A = String(a).toLowerCase();
@@ -31,11 +40,11 @@ export function breedScore(a, b) {
 }
 export function totalConfidence({ dKm, hDiff, breedS, colorS, sizeS, ageS }) {
   return Math.round(
-    0.30 * distanceScoreKm(dKm) +
-    0.20 * timeScoreHours(hDiff) +
-    0.25 * breedS +
-    0.15 * colorS +
-    0.05 * sizeS +
-    0.05 * ageS
+    WEIGHTS.distance * distanceScoreKm(dKm) +
+    WEIGHTS.time * timeScoreHours(hDiff) +
+    WEIGHTS.breed * breedS +
+    WEIGHTS.color * colorS +
+    WEIGHTS.size * sizeS +
+    WEIGHTS.age * ageS
   );
 }

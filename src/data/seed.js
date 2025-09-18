@@ -10,7 +10,7 @@ export const seededLostPets = [
 ];
 
 export const seededSightings = [
-  { id: "SG101", species: "dog", breed: "labrador_retriever", color: "black", notes: "เห็นวิ่งข้างสวนลุม", time: "2025-09-01T21:00", geo: { lat: 13.742, lng: 100.541 } },
-  { id: "SG102", species: "dog", breed: "pomeranian", color: "cream", notes: "มีปลอกคอสีฟ้า", time: "2025-08-30T18:20", geo: { lat: 13.82, lng: 100.565 } },
-  { id: "SG103", species: "cat", breed: "siamese", color: "cream brown", notes: "ร้องอยู่ใต้สะพาน", time: "2025-09-01T12:40", geo: { lat: 13.733, lng: 100.525 } },
+  { id: "SG101", species: "dog", breed: "labrador_retriever", color: "black", size: "large", age: "adult", notes: "เห็นวิ่งข้างสวนลุม", time: "2025-09-01T21:00", geo: { lat: 13.742, lng: 100.541 } },
+  { id: "SG102", species: "dog", breed: "pomeranian", color: "cream", size: "small", age: "adult", notes: "มีปลอกคอสีฟ้า", time: "2025-08-30T18:20", geo: { lat: 13.82, lng: 100.565 } },
+  { id: "SG103", species: "cat", breed: "siamese", color: "cream brown", size: "medium", age: "adult", notes: "ร้องอยู่ใต้สะพาน", time: "2025-09-01T12:40", geo: { lat: 13.733, lng: 100.525 } },
 ];
