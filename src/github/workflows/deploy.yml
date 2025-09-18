@@ -1,60 +1,23 @@
-name: Deploy Vite site to GitHub Pages
-
+name: Deploy to GitHub Pages
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
+    branches:
+      - main  # or your default branch name
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Show repo tree (debug)
-        run: |
-          ls -la
-          echo "---- package.json ----"
-          cat package.json || true
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
         with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies (ci if lockfile, else install)
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-      - name: Build
-        run: npm run build
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
+          node-version: '14' # or your Node version
+      - name: Install dependencies
+        run: npm install
+      - name: Build project
+        run: npm run build  # or your build script
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        run: npx gh-pages -d dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
