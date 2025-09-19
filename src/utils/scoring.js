@@ -26,7 +26,23 @@ export function timeScoreHours(diffHours) {
   return Math.max(0, Math.round(s * 100));
 }
 export function ageScore(a, b) { if (!a || !b) return 0; return a === b ? 100 : 0; }
-export function sizeScore(a, b) { if (!a || !b) return 0; return a === b ? 100 : 0; }
+export function sizeScore(a, b) {
+  if (!a || !b) return 0;
+  const sizeMap = {
+    small: 0,
+    medium: 1,
+    large: 2,
+  };
+  const scoreMatrix = [
+    [100, 50, 0],
+    [50, 100, 50],
+    [0, 50, 100],
+  ];
+  const i = sizeMap[a.toLowerCase()];
+  const j = sizeMap[b.toLowerCase()];
+  if (i === undefined || j === undefined) return 0;
+  return scoreMatrix[i][j];
+}
 export function breedScore(a, b) {
   if (!a || !b) return 0;
   if (a === b) return 100;
